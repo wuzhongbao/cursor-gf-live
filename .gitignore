@@ -10,5 +10,5 @@ assets-src/
 *.mp3
 *.wav
 .vscode-test/
-media/characters/_official-codexgf/
-media/characters/_src/
+**/._*
+.DS_Store

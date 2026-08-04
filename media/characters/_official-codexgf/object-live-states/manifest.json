@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "characterId": "testactor",
+  "durationSeconds": 6,
+  "frameRate": 24,
+  "width": 736,
+  "height": 400,
+  "format": "video/webm; codecs=vp9",
+  "states": {
+    "idle": "idle.webm",
+    "listening": "listening.webm",
+    "thinking": "thinking.webm",
+    "speaking": "speaking-neutral.webm",
+    "acting": "acting.webm",
+    "approval": "approval.webm",
+    "done": "done.webm"
+  },
+  "variants": {
+    "idle": [
+      "speaking-confident.webm",
+      "speaking-curious.webm",
+      "speaking-happy.webm",
+      "speaking-playful.webm",
+      "speaking-surprised.webm",
+      "speaking-warm.webm"
+    ],
+    "listening": [
+      "listening-focus.webm",
+      "listening-nod.webm"
+    ],
+    "acting": [
+      "speaking-confident.webm",
+      "speaking-curious.webm",
+      "speaking-happy.webm",
+      "speaking-playful.webm",
+      "speaking-surprised.webm",
+      "speaking-warm.webm"
+    ],
+    "done": [
+      "done-soft.webm",
+      "done-confirm.webm"
+    ]
+  },
+  "reuse": {
+    "listening": "thinking",
+    "approval": "done"
+  }
+}

@@ -7,6 +7,30 @@ Cursor 侧栏「赛博女友」动态角色扩展。角色随 Agent Hooks 在
 
 **最新版本：** [v0.3.15](https://github.com/wuzhongbao/cursor-gf-live/releases/latest)
 
+![Cursor GF Live 预览](docs/screenshots/hero-preview.png)
+
+## 效果预览
+
+### 实际使用场景
+
+深色主题 · Agent 朗读回复时：
+
+![深色主题使用场景](docs/screenshots/usage-dark-speaking.png)
+
+浅色主题 · 聆听用户输入时：
+
+![浅色主题使用场景](docs/screenshots/usage-warm-listening.png)
+
+### 角色素材六态
+
+**深色赛博**
+
+![深色赛博六态](docs/screenshots/pack-dark-cyber.png)
+
+**暖白女友**
+
+![暖白女友六态](docs/screenshots/pack-warm-white.png)
+
 ## 功能
 
 - 右侧 Activity Bar 常驻 **GF Live** 面板
@@ -29,6 +53,8 @@ cursor --install-extension .\cursor-gf-live-0.3.15.vsix
 3. 重新加载窗口后，左侧应出现 **GF Live** 图标
 4. 打开面板，点击 **安装 / 修复 Hooks**
 5. 新开一轮 Agent 对话，观察角色状态变化
+
+克隆本仓库后，`media/characters/dark-cyber` 与 `media/characters/warm-white` 已包含可直接使用的角色动画，无需额外下载。
 
 ## 从源码打包
 
@@ -106,14 +132,18 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:39217/event -ContentType ap
 
 ## 请我喝杯咖啡
 
-如果这个扩展对你有帮助，欢迎支持继续维护：
+如果这个扩展对你有帮助，欢迎扫码支持继续维护：
 
-- GitHub Sponsors：（开通后填链接）
-- 爱发电：（开通后填链接）
-- 微信 / 支付宝：把收款码放到 `media/donate/`，在此贴图即可
+| 微信支付 | 支付宝 |
+|:---:|:---:|
+| ![微信收款码](media/donate/wechat.png) | ![支付宝收款码](media/donate/alipay.png) |
 
 ## 许可与声明
 
 - 代码：MIT（见 [LICENSE](./LICENSE)）
-- 角色动画素材可能来源于第三方演示资源，**请自行评估公开分发的版权风险**；可替换为自有素材
-- 与 OpenAI CodexGF Live / Codex QQ Skin / Cursor 官方无隶属关系
+- **角色素材出处：** 运行时角色包与部分源素材参考 / 改编自社区开源项目 **CodexGF Live**（赛博女友动态角色演示）及相关衍生资源；本仓库仅为 Cursor 侧第三方集成，**与 OpenAI、CodexGF Live、Codex QQ Skin、Cursor 官方均无隶属关系**
+- 素材目录说明：
+  - `media/characters/dark-cyber` / `warm-white`：扩展直接加载的角色包（克隆即可用）
+  - `media/characters/_official-codexgf`：官方 / 上游演示源素材归档
+  - `media/characters/_src`：制作过程参考图与中间帧
+- 若你计划商用或二次分发，请自行确认素材版权并优先替换为自有角色

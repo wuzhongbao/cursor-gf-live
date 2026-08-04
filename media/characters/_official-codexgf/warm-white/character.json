@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "displayName": "暖白女友",
+  "subtitle": "温暖陪伴型开发伙伴",
+  "accentColor": "#8BCFD8",
+  "appearance": "light",
+  "driver": "video",
+  "mode": "dynamic",
+  "subjectSide": "right",
+  "poster": "poster.png",
+  "states": {
+    "idle": "states/idle.webm",
+    "listening": "states/listening.webm",
+    "thinking": {
+      "reuse": "listening"
+    },
+    "speaking": "states/speaking.webm",
+    "acting": {
+      "reuse": "idle"
+    },
+    "approval": {
+      "reuse": "idle"
+    },
+    "done": {
+      "reuse": "idle"
+    }
+  }
+}
