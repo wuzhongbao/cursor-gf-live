@@ -1,0 +1,14 @@
+node_modules/
+out/
+*.vsix
+.DS_Store
+*.log
+assets-src/
+.tmp-codexgf/
+.tts-test/
+**/.tmp-frames/
+*.mp3
+*.wav
+.vscode-test/
+media/characters/_official-codexgf/
+media/characters/_src/

@@ -1,0 +1,172 @@
+{
+  "name": "cursor-gf-live",
+  "displayName": "Cursor GF Live",
+  "description": "Cyber girlfriend companion panel for Cursor - multi-state animations driven by Agent hooks.",
+  "version": "0.3.15",
+  "publisher": "wuzhongbao",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wuzhongbao/cursor-gf-live.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gfLive",
+          "title": "GF Live",
+          "icon": "media/icons/gf-live.svg"
+        }
+      ]
+    },
+    "views": {
+      "gfLive": [
+        {
+          "type": "webview",
+          "id": "gfLive.panel",
+          "name": "GF Live"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gfLive.showPanel",
+        "title": "GF Live: Show Panel"
+      },
+      {
+        "command": "gfLive.installHooks",
+        "title": "GF Live: Install / Repair Hooks"
+      },
+      {
+        "command": "gfLive.uninstallHooks",
+        "title": "GF Live: Uninstall Hooks"
+      },
+      {
+        "command": "gfLive.openCharacterFolder",
+        "title": "GF Live: Open Character Folder"
+      },
+      {
+        "command": "gfLive.testVoice",
+        "title": "GF Live: Test Voice"
+      }
+    ],
+    "configuration": {
+      "title": "GF Live",
+      "properties": {
+        "gfLive.port": {
+          "type": "number",
+          "default": 39217,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Localhost port for the hooks event bridge."
+        },
+        "gfLive.idleTimeoutMs": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 1000,
+          "description": "Milliseconds without events before returning to idle."
+        },
+        "gfLive.doneHoldMs": {
+          "type": "number",
+          "default": 2500,
+          "minimum": 500,
+          "description": "How long to show done before falling back to idle."
+        },
+        "gfLive.defaultPack": {
+          "type": "string",
+          "enum": [
+            "dark-cyber",
+            "warm-white"
+          ],
+          "default": "dark-cyber",
+          "description": "Default character pack."
+        },
+        "gfLive.autoFollowTheme": {
+          "type": "boolean",
+          "default": true,
+          "description": "Recommend warm-white in light theme and dark-cyber in dark theme on first open."
+        },
+        "gfLive.voiceEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Speak assistant replies with neural female TTS (Edge) when Agent finishes a response."
+        },
+        "gfLive.voiceId": {
+          "type": "string",
+          "default": "zh-CN-XiaoxiaoNeural",
+          "enum": [
+            "zh-CN-XiaoxiaoNeural",
+            "zh-CN-XiaoyiNeural",
+            "zh-CN-XiaochenNeural",
+            "zh-CN-XiaohanNeural",
+            "zh-CN-XiaomengNeural",
+            "zh-CN-XiaoxuanNeural",
+            "zh-CN-XiaorouNeural",
+            "zh-CN-XiaozhenNeural"
+          ],
+          "enumDescriptions": [
+            "Xiaoxiao - soft sweet",
+            "Xiaoyi - lively cute",
+            "Xiaochen - calm clear",
+            "Xiaohan - warm gentle",
+            "Xiaomeng - soft youthful",
+            "Xiaoxuan - bright clear",
+            "Xiaorou - soft tender",
+            "Xiaozhen - steady warm"
+          ],
+          "description": "Microsoft Edge neural Chinese female voice."
+        },
+        "gfLive.voiceRate": {
+          "type": "number",
+          "default": 1.05,
+          "minimum": 0.7,
+          "maximum": 1.4,
+          "description": "Speech rate for neural TTS."
+        },
+        "gfLive.voicePitch": {
+          "type": "number",
+          "default": 1.08,
+          "minimum": 0.8,
+          "maximum": 1.4,
+          "description": "Speech pitch for neural TTS."
+        },
+        "gfLive.voiceMaxChars": {
+          "type": "number",
+          "default": 360,
+          "minimum": 80,
+          "maximum": 1200,
+          "description": "Maximum characters spoken per reply."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies",
+    "assets": "node scripts/build-assets.mjs",
+    "assets:photoreal": "node scripts/build-photoreal-assets.mjs",
+    "smoke": "npm run compile && node scripts/smoke-test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "gif-encoder-2": "^1.0.5",
+    "sharp": "^0.33.5",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "msedge-tts": "^2.0.7"
+  }
+}
