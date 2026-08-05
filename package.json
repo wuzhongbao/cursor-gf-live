@@ -2,7 +2,7 @@
   "name": "cursor-gf-live",
   "displayName": "Cursor GF Live",
   "description": "Cyber girlfriend companion panel for Cursor - multi-state animations driven by Agent hooks.",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "publisher": "wuzhongbao",
   "repository": {
     "type": "git",

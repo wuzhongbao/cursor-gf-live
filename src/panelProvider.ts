@@ -317,7 +317,11 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     return out;
   }
 
-  /** Official-style expression pools (dark-cyber has rich speaking variants). */
+  /**
+   * Official-style expression pools.
+   * Speaking stays locked to one stable clip (CodexGF: speaking-neutral) so
+   * TTS + captions are not interrupted by pose jumps mid-reply.
+   */
   private variantMap(
     webview: vscode.Webview,
     pack: CharacterPack,
@@ -353,7 +357,12 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
           urls.push(webview.asWebviewUri(candidate).toString());
         }
       }
-      if (primary[state] && !urls.includes(primary[state])) {
+      // Do not mix primary speaking.mp4 into a locked neutral pool.
+      if (
+        primary[state] &&
+        !urls.includes(primary[state]) &&
+        !(state === 'speaking' && urls.length > 0)
+      ) {
         urls.unshift(primary[state]);
       }
       if (urls.length) {
@@ -524,7 +533,6 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     let currentUtterance = null;
     let mediaIsVideo = false;
     let lastPickedUrl = '';
-    let expressionTimer = null;
     let videoWatchdog = null;
 
     const imgA = document.getElementById('imgA');
@@ -562,12 +570,7 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     function showCaption(text, durationMs) {
       clearCaption();
       if (!captionEl || !text) return;
-      // Match facial expression to reply content when speaking.
-      if (snap && snap.state === 'speaking') {
-        const url = pickSpeakingByText(text);
-        if (url) showVideo(url, true, (posters && posters.speaking) || (posters && posters.idle) || '');
-        armSpeakingExpressionCycle();
-      }
+      // Keep speaking clip stable (CodexGF style); captions track TTS only.
       const chars = Array.from(String(text));
       captionEl.innerHTML = chars.map((ch) => {
         const safe = ch === ' ' ? '&nbsp;' : ch
@@ -649,46 +652,6 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
       return url || fallback;
     }
 
-    function pickSpeakingByText(text) {
-      const pool = (variants && variants.speaking) || [];
-      if (!pool.length) return pickUrl('speaking', true);
-      const t = String(text || '');
-      const prefer = [];
-      if (/开心|高兴|哈哈|太好|棒|喜欢|爱/.test(t)) prefer.push('happy', 'playful', 'warm');
-      if (/确认|可以|没问题|好的|同意/.test(t)) prefer.push('confirm', 'confident');
-      if (/怎么|为什么|吗|[？?]/.test(t)) prefer.push('curious', 'thoughtful');
-      if (/抱歉|不好意思|遗憾|可惜/.test(t)) prefer.push('thoughtful', 'warm');
-      if (/注意|重要|强调|必须/.test(t)) prefer.push('emphasis', 'explain');
-      if (/惊讶|哇|居然|没想到/.test(t)) prefer.push('surprised');
-      if (!prefer.length) prefer.push('neutral', 'explain', 'warm', 'confident');
-      const hit = pool.filter((u) => prefer.some((k) => u.indexOf('speaking-' + k) >= 0));
-      if (hit.length) {
-        const url = hit[Math.floor(Math.random() * hit.length)];
-        lastPickedUrl = url;
-        return url;
-      }
-      return pickUrl('speaking', true);
-    }
-
-    function clearExpressionTimer() {
-      if (expressionTimer) {
-        clearInterval(expressionTimer);
-        expressionTimer = null;
-      }
-    }
-
-    function armSpeakingExpressionCycle() {
-      clearExpressionTimer();
-      expressionTimer = setInterval(() => {
-        if (!snap || snap.state !== 'speaking') {
-          clearExpressionTimer();
-          return;
-        }
-        const url = pickUrl('speaking', true);
-        if (url) showVideo(url, true, (posters && posters.speaking) || (posters && posters.idle) || '');
-      }, 3200);
-    }
-
     function showVideo(url, soft, posterUrl) {
       const incoming = useA ? vidB : vidA;
       const outgoing = useA ? vidA : vidB;
@@ -762,7 +725,6 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     }
 
     function showMedia(state) {
-      clearExpressionTimer();
       const url = pickUrl(state, true);
       const posterUrl = (posters && posters[state]) || (posters && posters.idle) || '';
       if (!url) {
@@ -781,8 +743,8 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
       if (nextIsVideo) {
         imgA.classList.remove('visible');
         imgB.classList.remove('visible');
+        // Speaking: one stable looping clip (CodexGF). Other states may rotate via pool.
         showVideo(url, false, posterUrl);
-        if (state === 'speaking') armSpeakingExpressionCycle();
       } else {
         try { vidA.pause(); vidB.pause(); } catch (e) {}
         vidA.classList.remove('visible');
@@ -797,7 +759,6 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
       currentUtterance = null;
       voiceLine.textContent = '';
       clearCaption();
-      clearExpressionTimer();
     }
 
     function playAudioUrl(url) {

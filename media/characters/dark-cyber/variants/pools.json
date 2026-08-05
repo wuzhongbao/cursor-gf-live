@@ -1,5 +1,5 @@
 {
-  "speaking": ["speaking-neutral.mp4","speaking-explain.mp4","speaking-confirm.mp4","speaking-emphasis.mp4","speaking-thoughtful.mp4","speaking-confident.mp4","speaking-curious.mp4","speaking-happy.mp4","speaking-playful.mp4","speaking-surprised.mp4","speaking-warm.mp4"],
+  "speaking": ["speaking-neutral.mp4"],
   "listening": ["listening.mp4","listening-focus.mp4","listening-nod.mp4"],
   "working": ["acting.mp4","thinking.mp4","speaking-thoughtful.mp4","speaking-confident.mp4"],
   "done": ["done.mp4","done-soft.mp4","done-confirm.mp4"],
