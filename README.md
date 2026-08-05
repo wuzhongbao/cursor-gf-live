@@ -5,7 +5,7 @@ Cursor 侧栏「赛博女友」动态角色扩展。角色随 Agent Hooks 在
 
 非官方第三方扩展，不修改 Cursor 安装包。
 
-**最新版本：** [v0.3.15](https://github.com/wuzhongbao/cursor-gf-live/releases/latest)
+**最新版本：** [v0.3.16](https://github.com/wuzhongbao/cursor-gf-live/releases/latest)
 
 ![Cursor GF Live 预览](docs/screenshots/hero-preview.png)
 
@@ -47,7 +47,7 @@ Cursor 侧栏「赛博女友」动态角色扩展。角色随 Agent Hooks 在
    或：
 
 ```powershell
-cursor --install-extension .\cursor-gf-live-0.3.15.vsix
+cursor --install-extension .\cursor-gf-live-0.3.16.vsix
 ```
 
 3. 重新加载窗口后，左侧应出现 **GF Live** 图标
