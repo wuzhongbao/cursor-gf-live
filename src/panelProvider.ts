@@ -36,6 +36,13 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     voiceId: DEFAULT_NEURAL_VOICE,
   };
   private speakHandler?: (text: string, force: boolean) => Promise<void>;
+  /** Layout chrome hidden while immersive; restore on exit. */
+  private immersiveChrome?: {
+    closedAux: boolean;
+    closedSidebar: boolean;
+    closedPanel: boolean;
+    enteredZen: boolean;
+  };
 
   constructor(
     extensionUri: vscode.Uri,
@@ -45,6 +52,53 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     this.extensionUri = extensionUri;
     this.audioDir = audioDir;
     this.machine = machine;
+  }
+
+  /** Hide Chat / sidebars so the character can fill Cursor. */
+  private async applyImmersiveLayout(on: boolean): Promise<void> {
+    const run = async (command: string): Promise<boolean> => {
+      try {
+        await vscode.commands.executeCommand(command);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    if (on) {
+      if (this.immersiveChrome) {
+        return;
+      }
+      // Close Cursor Chat (aux bar) + sidebars first — Zen alone may leave Chat open.
+      await run('workbench.action.closeAuxiliaryBar');
+      await run('workbench.action.closeSidebar');
+      await run('workbench.action.closePanel');
+      const enteredZen = await run('workbench.action.toggleZenMode');
+      this.immersiveChrome = {
+        closedAux: true,
+        closedSidebar: true,
+        closedPanel: true,
+        enteredZen,
+      };
+      // Re-close Chat in case Zen reopened / Cursor restored the aux bar.
+      await run('workbench.action.closeAuxiliaryBar');
+      await run('gfLive.panel.focus');
+      await run('workbench.view.extension.gfLive');
+      return;
+    }
+
+    const prev = this.immersiveChrome;
+    this.immersiveChrome = undefined;
+    if (!prev) {
+      return;
+    }
+    if (prev.enteredZen) {
+      await run('workbench.action.toggleZenMode');
+    }
+    // Bring Chat back on the right.
+    if (!(await run('workbench.action.focusAuxiliaryBar'))) {
+      await run('workbench.action.toggleAuxiliaryBar');
+    }
   }
 
   setSpeakHandler(handler: (text: string, force: boolean) => Promise<void>): void {
@@ -225,6 +279,9 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
       } else if (type === 'ready') {
         this.postSnapshot(this.machine.snapshot());
         this.postVoiceSettings();
+      } else if (type === 'setImmersive') {
+        const on = Boolean((msg as { on?: boolean }).on);
+        await this.applyImmersiveLayout(on);
       }
     });
   }
@@ -449,6 +506,11 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     }
     body.immersive .immersive-hud { display: block; }
     body.immersive .caption { font-size: 18px; left: 16px; right: 16px; bottom: 18px; }
+    body.immersive .viewport img,
+    body.immersive .viewport video {
+      object-fit: cover;
+      object-position: 78% center;
+    }
     .placeholder {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       color: #9ca3af; font-size: 13px; z-index: 0;
@@ -593,10 +655,13 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     let immersive = false;
 
     function setImmersive(on) {
-      immersive = !!on;
+      const next = !!on;
+      if (next === immersive) return;
+      immersive = next;
       document.body.classList.toggle('immersive', immersive);
       if (immerseBtn) immerseBtn.textContent = immersive ? '退出全屏' : '全屏';
       if (fsCornerBtn) fsCornerBtn.textContent = immersive ? '退出' : '全屏';
+      vscode.postMessage({ type: 'setImmersive', on: immersive });
       if (immersive) {
         const el = viewport;
         if (el && el.requestFullscreen) {
