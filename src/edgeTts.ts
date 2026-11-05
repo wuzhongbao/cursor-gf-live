@@ -1,10 +1,34 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 
 export interface NeuralVoiceOption {
   id: string;
   label: string;
+}
+
+type MsEdgeTTSInstance = {
+  setMetadata: (voice: string, output: string) => Promise<void>;
+  toStream: (
+    text: string,
+    prosody?: { rate?: number; pitch?: string; volume?: number }
+  ) => { audioStream: NodeJS.ReadableStream };
+  close: () => void;
+};
+
+type EdgeTtsModule = {
+  MsEdgeTTS: new () => MsEdgeTTSInstance;
+  OUTPUT_FORMAT: { AUDIO_24KHZ_96KBITRATE_MONO_MP3: string };
+};
+
+let edgeMod: EdgeTtsModule | undefined;
+
+function loadEdgeTts(): EdgeTtsModule {
+  if (!edgeMod) {
+    // Lazy-load so the panel can still open if the dep is missing from a broken install.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    edgeMod = require('msedge-tts') as EdgeTtsModule;
+  }
+  return edgeMod;
 }
 
 /** Pleasant Chinese female neural voices (Edge Read Aloud). */
@@ -21,10 +45,8 @@ export const NEURAL_VOICES: NeuralVoiceOption[] = [
 
 export const DEFAULT_NEURAL_VOICE = 'zh-CN-XiaoxiaoNeural';
 
-const OUTPUT = OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3;
-
 let cachedVoice = '';
-let cachedTts: MsEdgeTTS | undefined;
+let cachedTts: MsEdgeTTSInstance | undefined;
 let warmPromise: Promise<void> | undefined;
 let synthChain: Promise<unknown> = Promise.resolve();
 
@@ -77,7 +99,7 @@ function resolveVoice(text: string, voice: string): string {
   return v;
 }
 
-async function getReadyTts(voice: string): Promise<MsEdgeTTS> {
+async function getReadyTts(voice: string): Promise<MsEdgeTTSInstance> {
   if (cachedTts && cachedVoice === voice) {
     return cachedTts;
   }
@@ -90,8 +112,12 @@ async function getReadyTts(voice: string): Promise<MsEdgeTTS> {
     cachedTts = undefined;
     cachedVoice = '';
   }
+  const { MsEdgeTTS, OUTPUT_FORMAT } = loadEdgeTts();
   const tts = new MsEdgeTTS();
-  await tts.setMetadata(voice, OUTPUT);
+  await tts.setMetadata(
+    voice,
+    OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3
+  );
   cachedTts = tts;
   cachedVoice = voice;
   return tts;
@@ -173,7 +199,7 @@ async function synthesizeNeuralMp3Inner(opts: {
   const plain = sanitizeSpeakText(opts.text);
   const safe = escapeXml(plain);
 
-  let tts: MsEdgeTTS;
+  let tts: MsEdgeTTSInstance;
   try {
     tts = await getReadyTts(voice);
   } catch {

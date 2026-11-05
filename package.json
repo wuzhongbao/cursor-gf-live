@@ -2,7 +2,7 @@
   "name": "cursor-gf-live",
   "displayName": "Cursor GF Live",
   "description": "Cyber girlfriend companion panel for Cursor - multi-state animations driven by Agent hooks.",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "publisher": "wuzhongbao",
   "repository": {
     "type": "git",
@@ -153,7 +153,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package --no-dependencies",
+    "package": "vsce package",
     "assets": "node scripts/build-assets.mjs",
     "assets:photoreal": "node scripts/build-photoreal-assets.mjs",
     "smoke": "npm run compile && node scripts/smoke-test.mjs"

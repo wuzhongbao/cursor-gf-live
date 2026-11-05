@@ -5,8 +5,6 @@ src/**
 tsconfig.json
 **/*.ts
 **/*.map
-node_modules/**
-!node_modules/
 *.vsix
 scripts/**
 **/*.png
@@ -18,3 +16,5 @@ assets-src/**
 **/.tmp-frames/**
 .tts-test/**
 **/.tts-test/**
+docs/**
+media/donate/**
