@@ -417,6 +417,9 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
       font-size: 12px;
     }
     .wrap { display: flex; flex-direction: column; height: 100%; padding: 10px; gap: 10px; }
+    .title-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
     .title {
       font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
       color: var(--fg); opacity: 0.9;
@@ -425,6 +428,27 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
       position: relative; flex: 1 1 auto; min-height: 220px;
       border-radius: 10px; overflow: hidden; background: #05070a; border: 1px solid var(--border);
     }
+    .fs-btn {
+      position: absolute; top: 8px; right: 8px; z-index: 6;
+      opacity: 0; transition: opacity 160ms ease;
+    }
+    .viewport:hover .fs-btn, body.immersive .fs-btn { opacity: 1; }
+    .immersive-hud {
+      display: none; position: absolute; left: 10px; top: 10px; z-index: 6;
+      padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+      background: rgba(0,0,0,0.45); color: #fff; letter-spacing: 0.02em;
+      backdrop-filter: blur(6px);
+    }
+    body.immersive .wrap { padding: 0; gap: 0; }
+    body.immersive .title-row,
+    body.immersive .status,
+    body.immersive .footer { display: none !important; }
+    body.immersive .viewport {
+      flex: 1 1 auto; min-height: 100%; height: 100%;
+      border: none; border-radius: 0;
+    }
+    body.immersive .immersive-hud { display: block; }
+    body.immersive .caption { font-size: 18px; left: 16px; right: 16px; bottom: 18px; }
     .placeholder {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       color: #9ca3af; font-size: 13px; z-index: 0;
@@ -479,13 +503,18 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
   <div class="wrap">
-    <div class="title">GF LIVE</div>
-    <div class="viewport" id="viewport">
+    <div class="title-row">
+      <div class="title">GF LIVE</div>
+      <button class="action" id="immerseBtn" type="button" title="沉浸全屏（也可双击画面）">全屏</button>
+    </div>
+    <div class="viewport" id="viewport" title="双击进入/退出全屏">
       <div class="placeholder" id="placeholder">角色加载中…</div>
       <video id="vidA" muted playsinline loop preload="auto"></video>
       <video id="vidB" muted playsinline loop preload="auto"></video>
       <img id="imgA" alt="character" />
       <img id="imgB" alt="character" />
+      <div class="immersive-hud" id="immersiveHud">IDLE · 待机中</div>
+      <button class="action fs-btn" id="fsCornerBtn" type="button" title="退出全屏">退出</button>
       <div class="caption" id="caption" aria-live="polite"></div>
     </div>
     <div class="status">
@@ -555,8 +584,58 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     const player = document.getElementById('player');
     const dot = document.getElementById('dot');
     const captionEl = document.getElementById('caption');
+    const immerseBtn = document.getElementById('immerseBtn');
+    const fsCornerBtn = document.getElementById('fsCornerBtn');
+    const immersiveHud = document.getElementById('immersiveHud');
+    const viewport = document.getElementById('viewport');
     let captionTimer = null;
     let captionRaf = 0;
+    let immersive = false;
+
+    function setImmersive(on) {
+      immersive = !!on;
+      document.body.classList.toggle('immersive', immersive);
+      if (immerseBtn) immerseBtn.textContent = immersive ? '退出全屏' : '全屏';
+      if (fsCornerBtn) fsCornerBtn.textContent = immersive ? '退出' : '全屏';
+      if (immersive) {
+        const el = viewport;
+        if (el && el.requestFullscreen) {
+          el.requestFullscreen().catch(() => {});
+        }
+      } else if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    function toggleImmersive() {
+      setImmersive(!immersive);
+    }
+
+    if (immerseBtn) immerseBtn.addEventListener('click', toggleImmersive);
+    if (fsCornerBtn) fsCornerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (immersive) setImmersive(false);
+      else toggleImmersive();
+    });
+    if (viewport) {
+      viewport.addEventListener('dblclick', (e) => {
+        if (e.target && (e.target.id === 'fsCornerBtn' || e.target.id === 'immerseBtn')) return;
+        toggleImmersive();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && immersive) setImmersive(false);
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target && e.target.tagName) || '';
+        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+        toggleImmersive();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && immersive) {
+        // Keep CSS immersive even if host blocks OS fullscreen.
+      }
+    });
 
     function clearCaption() {
       if (captionTimer) { clearTimeout(captionTimer); captionTimer = null; }
@@ -812,7 +891,9 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     }
 
     function render() {
-      labelEl.textContent = snap.label || LABELS[snap.state] || snap.state;
+      const statusText = snap.label || LABELS[snap.state] || snap.state;
+      labelEl.textContent = statusText;
+      if (immersiveHud) immersiveHud.textContent = statusText;
       manualTag.hidden = !snap.manual;
       packSel.value = snap.pack;
       voiceToggle.checked = !voice || voice.enabled !== false;
