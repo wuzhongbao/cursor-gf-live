@@ -24,6 +24,8 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'gfLive.panel';
 
   private view?: vscode.WebviewView;
+  /** Full-bleed editor webview used for true immersive mode. */
+  private theater?: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
   private readonly audioDir: vscode.Uri;
   private readonly machine: StateMachine;
@@ -36,13 +38,7 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     voiceId: DEFAULT_NEURAL_VOICE,
   };
   private speakHandler?: (text: string, force: boolean) => Promise<void>;
-  /** Layout chrome hidden while immersive; restore on exit. */
-  private immersiveChrome?: {
-    closedAux: boolean;
-    closedSidebar: boolean;
-    closedPanel: boolean;
-    enteredZen: boolean;
-  };
+  private immersiveActive = false;
 
   constructor(
     extensionUri: vscode.Uri,
@@ -54,51 +50,111 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     this.machine = machine;
   }
 
-  /** Hide Chat / sidebars so the character can fill Cursor. */
-  private async applyImmersiveLayout(on: boolean): Promise<void> {
-    const run = async (command: string): Promise<boolean> => {
-      try {
-        await vscode.commands.executeCommand(command);
-        return true;
-      } catch {
-        return false;
-      }
-    };
+  private async runCommand(command: string): Promise<boolean> {
+    try {
+      await vscode.commands.executeCommand(command);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
+  private allWebviews(): vscode.Webview[] {
+    const list: vscode.Webview[] = [];
+    if (this.view) {
+      list.push(this.view.webview);
+    }
+    if (this.theater) {
+      list.push(this.theater.webview);
+    }
+    return list;
+  }
+
+  private primaryWebview(): vscode.Webview | undefined {
+    return this.theater?.webview ?? this.view?.webview;
+  }
+
+  private localRoots(): vscode.Uri[] {
+    return [vscode.Uri.joinPath(this.extensionUri, 'media'), this.audioDir];
+  }
+
+  /**
+   * Immersive = editor theater panel (fills the empty editor strip) + hide Chat/sidebars.
+   * Sidebar-only CSS fullscreen cannot cover Cursor's editor area on the right.
+   */
+  private async applyImmersiveLayout(on: boolean): Promise<void> {
     if (on) {
-      if (this.immersiveChrome) {
+      if (this.immersiveActive && this.theater) {
+        this.theater.reveal(vscode.ViewColumn.One);
         return;
       }
-      // Close Cursor Chat (aux bar) + sidebars first — Zen alone may leave Chat open.
-      await run('workbench.action.closeAuxiliaryBar');
-      await run('workbench.action.closeSidebar');
-      await run('workbench.action.closePanel');
-      const enteredZen = await run('workbench.action.toggleZenMode');
-      this.immersiveChrome = {
-        closedAux: true,
-        closedSidebar: true,
-        closedPanel: true,
-        enteredZen,
-      };
-      // Re-close Chat in case Zen reopened / Cursor restored the aux bar.
-      await run('workbench.action.closeAuxiliaryBar');
-      await run('gfLive.panel.focus');
-      await run('workbench.view.extension.gfLive');
+      this.immersiveActive = true;
+      await this.openTheaterPanel();
+      await this.runCommand('workbench.action.closeOtherEditors');
+      await this.runCommand('workbench.action.closeAuxiliaryBar');
+      await this.runCommand('workbench.action.closeSidebar');
+      await this.runCommand('workbench.action.closePanel');
+      // Join editor groups so no empty sibling column remains on the right.
+      await this.runCommand('workbench.action.joinAllGroups');
+      await this.runCommand('workbench.action.maximizeEditorHideSidebar');
+      this.theater?.reveal(vscode.ViewColumn.One, false);
+      await this.runCommand('workbench.action.closeAuxiliaryBar');
       return;
     }
 
-    const prev = this.immersiveChrome;
-    this.immersiveChrome = undefined;
-    if (!prev) {
+    if (!this.immersiveActive) {
       return;
     }
-    if (prev.enteredZen) {
-      await run('workbench.action.toggleZenMode');
+    this.immersiveActive = false;
+    const panel = this.theater;
+    this.theater = undefined;
+    panel?.dispose();
+    await this.runCommand('workbench.view.extension.gfLive');
+    if (!(await this.runCommand('workbench.action.focusAuxiliaryBar'))) {
+      await this.runCommand('workbench.action.toggleAuxiliaryBar');
     }
-    // Bring Chat back on the right.
-    if (!(await run('workbench.action.focusAuxiliaryBar'))) {
-      await run('workbench.action.toggleAuxiliaryBar');
+  }
+
+  private async openTheaterPanel(): Promise<void> {
+    if (this.theater) {
+      this.theater.reveal(vscode.ViewColumn.One);
+      this.theater.webview.postMessage({ type: 'forceImmersive', on: true });
+      return;
     }
+    const panel = vscode.window.createWebviewPanel(
+      'gfLive.theater',
+      'GF Live',
+      { viewColumn: vscode.ViewColumn.One, preserveFocus: false },
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: this.localRoots(),
+      }
+    );
+    this.theater = panel;
+    panel.iconPath = vscode.Uri.joinPath(
+      this.extensionUri,
+      'media',
+      'icons',
+      'gf-live.svg'
+    );
+    panel.webview.html = this.renderHtml(
+      panel.webview,
+      this.machine.snapshot(),
+      true
+    );
+    this.bindWebviewMessages(panel.webview);
+    panel.onDidDispose(() => {
+      if (this.theater === panel) {
+        this.theater = undefined;
+      }
+      if (this.immersiveActive) {
+        this.immersiveActive = false;
+        void this.runCommand('workbench.view.extension.gfLive');
+        void this.runCommand('workbench.action.focusAuxiliaryBar');
+        this.view?.webview.postMessage({ type: 'forceImmersive', on: false });
+      }
+    });
   }
 
   setSpeakHandler(handler: (text: string, force: boolean) => Promise<void>): void {
@@ -130,12 +186,13 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
   }
 
   playAudioFile(filePath: string): void {
-    if (!this.view) {
+    const webview = this.primaryWebview();
+    if (!webview) {
       return;
     }
     const fileUri = vscode.Uri.file(filePath);
-    const playUri = this.view.webview.asWebviewUri(fileUri).toString();
-    this.view.webview.postMessage({
+    const playUri = webview.asWebviewUri(fileUri).toString();
+    webview.postMessage({
       type: 'playAudio',
       url: playUri,
     });
@@ -143,14 +200,15 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
 
   /** Karaoke-style reply caption over the character (official Object Live vibe). */
   showCaption(text: string, durationMs?: number): void {
-    if (!this.view) {
+    const webview = this.primaryWebview();
+    if (!webview) {
       return;
     }
     const cleaned = (text || '').trim();
     if (!cleaned) {
       return;
     }
-    this.view.webview.postMessage({
+    webview.postMessage({
       type: 'showCaption',
       text: cleaned,
       durationMs: durationMs && durationMs > 0 ? durationMs : estimateSpeechMs(cleaned, this.voice.rate),
@@ -158,14 +216,17 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
   }
 
   clearCaption(): void {
-    this.view?.webview.postMessage({ type: 'clearCaption' });
+    for (const webview of this.allWebviews()) {
+      webview.postMessage({ type: 'clearCaption' });
+    }
   }
 
   speakSystemFallback(text: string, force = false): void {
-    if (!this.view) {
+    const webview = this.primaryWebview();
+    if (!webview) {
       return;
     }
-    this.view.webview.postMessage({
+    webview.postMessage({
       type: 'speak',
       text,
       rate: this.voice.rate,
@@ -176,14 +237,18 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
 
   stopSpeaking(): void {
     this.clearCaption();
-    this.view?.webview.postMessage({ type: 'stopSpeak' });
+    for (const webview of this.allWebviews()) {
+      webview.postMessage({ type: 'stopSpeak' });
+    }
   }
 
   postVoiceStatus(text: string): void {
-    this.view?.webview.postMessage({
-      type: 'voiceStatus',
-      text,
-    });
+    for (const webview of this.allWebviews()) {
+      webview.postMessage({
+        type: 'voiceStatus',
+        text,
+      });
+    }
   }
 
   resolveWebviewView(
@@ -195,14 +260,11 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     const webview = webviewView.webview;
     webview.options = {
       enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this.extensionUri, 'media'),
-        this.audioDir,
-      ],
+      localResourceRoots: this.localRoots(),
     };
 
     try {
-      webview.html = this.renderHtml(webview, this.machine.snapshot());
+      webview.html = this.renderHtml(webview, this.machine.snapshot(), false);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       webview.html = `<!DOCTYPE html><html><body style="background:#1e1e1e;color:#fff;font-family:sans-serif;padding:16px">
@@ -216,7 +278,10 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
 
     this.unsub?.();
     this.unsub = this.machine.subscribe((snap) => this.postSnapshot(snap));
+    this.bindWebviewMessages(webview);
+  }
 
+  private bindWebviewMessages(webview: vscode.Webview): void {
     webview.onDidReceiveMessage(async (msg) => {
       if (!msg || typeof msg !== 'object') {
         return;
@@ -288,33 +353,35 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
 
   dispose(): void {
     this.unsub?.();
+    this.theater?.dispose();
+    this.theater = undefined;
   }
 
   private postVoiceSettings(): void {
-    this.view?.webview.postMessage({
-      type: 'voiceSettings',
-      voice: this.voice,
-      voices: NEURAL_VOICES,
-    });
+    for (const webview of this.allWebviews()) {
+      webview.postMessage({
+        type: 'voiceSettings',
+        voice: this.voice,
+        voices: NEURAL_VOICES,
+      });
+    }
   }
 
   private postSnapshot(snap: StateSnapshot): void {
-    if (!this.view) {
-      return;
+    for (const webview of this.allWebviews()) {
+      const media = this.assetMap(webview, snap.pack);
+      const posters = this.posterMap(webview, snap.pack);
+      const variants = this.variantMap(webview, snap.pack, media);
+      webview.postMessage({
+        type: 'snapshot',
+        snapshot: snap,
+        media,
+        posters,
+        variants,
+        labels: STATE_LABELS,
+        states: STATES,
+      });
     }
-    const webview = this.view.webview;
-    const media = this.assetMap(webview, snap.pack);
-    const posters = this.posterMap(webview, snap.pack);
-    const variants = this.variantMap(webview, snap.pack, media);
-    webview.postMessage({
-      type: 'snapshot',
-      snapshot: snap,
-      media,
-      posters,
-      variants,
-      labels: STATE_LABELS,
-      states: STATES,
-    });
   }
 
   private assetMap(
@@ -429,7 +496,11 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     return out;
   }
 
-  private renderHtml(webview: vscode.Webview, snap: StateSnapshot): string {
+  private renderHtml(
+    webview: vscode.Webview,
+    snap: StateSnapshot,
+    startImmersive = false
+  ): string {
     const csp = [
       `default-src 'none'`,
       `img-src ${webview.cspSource} data: blob:`,
@@ -449,6 +520,7 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     const snapJson = JSON.stringify(snap);
     const voiceJson = JSON.stringify(this.voice);
     const voicesJson = JSON.stringify(NEURAL_VOICES);
+    const startImmersiveJson = JSON.stringify(Boolean(startImmersive));
 
     return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -563,11 +635,11 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     audio { display: none; }
   </style>
 </head>
-<body>
+<body class="${startImmersive ? 'immersive' : ''}">
   <div class="wrap">
     <div class="title-row">
       <div class="title">GF LIVE</div>
-      <button class="action" id="immerseBtn" type="button" title="沉浸全屏（也可双击画面）">全屏</button>
+      <button class="action" id="immerseBtn" type="button" title="沉浸全屏（也可双击画面）">${startImmersive ? '退出全屏' : '全屏'}</button>
     </div>
     <div class="viewport" id="viewport" title="双击进入/退出全屏">
       <div class="placeholder" id="placeholder">角色加载中…</div>
@@ -652,16 +724,23 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     const viewport = document.getElementById('viewport');
     let captionTimer = null;
     let captionRaf = 0;
-    let immersive = false;
+    let immersive = ${startImmersiveJson};
+    let suppressHostNotify = false;
 
-    function setImmersive(on) {
-      const next = !!on;
-      if (next === immersive) return;
-      immersive = next;
+    function paintImmersive() {
       document.body.classList.toggle('immersive', immersive);
       if (immerseBtn) immerseBtn.textContent = immersive ? '退出全屏' : '全屏';
       if (fsCornerBtn) fsCornerBtn.textContent = immersive ? '退出' : '全屏';
-      vscode.postMessage({ type: 'setImmersive', on: immersive });
+    }
+
+    function setImmersive(on, notifyHost) {
+      const next = !!on;
+      if (next === immersive) return;
+      immersive = next;
+      paintImmersive();
+      if (notifyHost !== false && !suppressHostNotify) {
+        vscode.postMessage({ type: 'setImmersive', on: immersive });
+      }
       if (immersive) {
         const el = viewport;
         if (el && el.requestFullscreen) {
@@ -671,6 +750,7 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
         document.exitFullscreen().catch(() => {});
       }
     }
+    paintImmersive();
 
     function toggleImmersive() {
       setImmersive(!immersive);
@@ -994,7 +1074,11 @@ export class GfLivePanelProvider implements vscode.WebviewViewProvider {
     window.addEventListener('message', (event) => {
       const msg = event.data;
       if (!msg) return;
-      if (msg.type === 'snapshot') {
+      if (msg.type === 'forceImmersive') {
+        suppressHostNotify = true;
+        setImmersive(!!msg.on, false);
+        suppressHostNotify = false;
+      } else if (msg.type === 'snapshot') {
         snap = msg.snapshot;
         media = msg.media || media;
         if (msg.posters) posters = msg.posters;
